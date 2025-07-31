@@ -27,7 +27,7 @@
 
 
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -46,28 +46,65 @@ app.add_middleware(
 
 class UserCreate(BaseModel):
     name: str
-    email: EmailStr
+    email: str
 
 @app.get("/api/users")
 async def get_users():
-    users = []
-    cursor = db.users.find()
-    if users == []:
-        return JSONResponse(status_code=404, content={ "message" : "No users found" })
-    else:
+    try:
+
+        users = []
+        cursor = db.users.find()
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
             users.append(doc)
-            return users
+
+        if users == []:
+            return JSONResponse(status_code=400, content={"message": "Database empty"})
+
+        return users
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/name")
+async def get_users_by_name(name: str = Query(...)):
+    try:
+        users = []
+        cursor = db.users.find({"name": name})
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            users.append(doc)
+
+        if not users:
+            return JSONResponse(status_code=404, content={"message": "Name not found"})
+
+        return users
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/email")
+async def get_users_by_email(email: str = Query(...)):
+    try:
+        users = []
+        cursor = db.users.find({"email": email})
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            users.append(doc)
+
+        if not users:
+            return JSONResponse(status_code=404, content={"message": "Email not found"})
+
+        return users
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/users")
 async def create_user(user: UserCreate):
     try:
-        if not user.name.strip():
-            return JSONResponse(status_code=400, content={"message": "Name is required"})
-
-        if not user.email.strip():
-            return JSONResponse(status_code=400, content={"message": "Email is required"})
+        if not user.name.strip() or not user.email.strip():
+            return JSONResponse(status_code=400, content={"message": "Name and email are required"})
 
         existing = await db.users.find_one({"email": user.email})
         if existing:
@@ -81,3 +118,17 @@ async def create_user(user: UserCreate):
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.delete("/api/users")
+async def clear_all_users():
+    try:
+        users_cursor = db.users.find({})
+        users = await users_cursor.to_list(length=1)
+        if not users:
+            return JSONResponse(status_code=400, content={"message": "Database empty"})
+        
+        result = await db.users.delete_many({})
+        return {"message": "Database cleared"}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": "Error clearing database", "error": str(e)})
