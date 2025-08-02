@@ -31,6 +31,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from bson import ObjectId
 
 from db.mongo import db
 
@@ -59,9 +60,37 @@ async def get_users():
             users.append(doc)
 
         if users == []:
-            return JSONResponse(status_code=400, content={"message": "Database empty"})
+            return JSONResponse(status_code=200, content={"message": "Database empty"})
 
         return users
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/users/{user_id}")
+async def get_user_by_id(user_id: str):
+    try:
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+
+        if not user:
+            return JSONResponse(status_code=404, content={"message": "Id not found"})
+
+        user["_id"] = str(user["_id"])
+        return user
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.delete("/api/users/{user_id}")
+async def delete_user_by_id(user_id: str):
+    try:
+        obj_id = ObjectId(user_id)
+        user = await db.users.delete_one({"_id": obj_id})
+
+        if user.deleted_count == 0:
+            return JSONResponse(status_code=404, content={"message": "Id not found"})
+
+        return {"message": "User Deleted"}
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -125,7 +154,7 @@ async def clear_all_users():
         users_cursor = db.users.find({})
         users = await users_cursor.to_list(length=1)
         if not users:
-            return JSONResponse(status_code=400, content={"message": "Database empty"})
+            return JSONResponse(status_code=204, content={"message": "Database empty"})
         
         result = await db.users.delete_many({})
         return {"message": "Database cleared"}

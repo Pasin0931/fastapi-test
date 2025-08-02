@@ -5,34 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 
-// export default function Home() {
-// const [message, setMessage] = useState('')
-
-// useEffect(() => {
-//   fetch('http://localhost:8000/api/hello')
-//     .then(res => res.json())
-//     .then(data => setMessage(data.message))
-// }, [])
-
-// useEffect(() => {
-//   fetch('http://localhost:8000/api/hi')
-//     .then(res => res.json())
-//     .then(data => setMessage(data.message))
-// }, [])
-
-//   if (!message) {
-//     return (
-//       <h1 className='flex justify-center items-center h-screen text-5xl'>No Messages or Loading</h1>
-//     )
-//   }
-
-//   return (
-//     <div>
-//       <h1 className='flex justify-center items-center h-screen text-5xl'>{message}</h1>
-//     </div>
-//   )
-// }
-
 interface UserProps {
   id: string
   name: string
@@ -43,27 +15,122 @@ export default function Home() {
 
   const [user, setUser] = useState<UserProps[]>([])
 
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  const fetchData = () => {
     setLoading(true)
-    fetch('http://localhost:8000/api/users')
-      .then(res => res.json())
-      .then(data => {
-        setUser(data)
-        // console.log(data)
+    fetch('http://localhost:8000/api/users', { method: "GET" })
+      .then(async res => {
+        const text = await res.text()
+        const data = text ? JSON.parse(text) : []
+        setUser(Array.isArray(data) ? data : [])
         setLoading(false)
       })
       .catch(error => {
         console.log("Error :", error)
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchData()
   }, [])
+
+  const handleClear = async () => {
+    try {
+
+      if (user.length === 0) {
+        return alert("Already empty")
+      }
+
+      if (!confirm("Clear database ?")) {
+        return console.log("Canceled")
+      }
+
+      const res = await fetch(`http://localhost:8000/api/users`, { method: "DELETE" })
+      if (res.ok) {
+        fetchData()
+      }
+      alert("Deleted")
+      setUser([])
+
+    } catch (error) {
+      console.log("Error :", error)
+      return alert("Error")
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+
+      if (!confirm("Delete ?")) {
+        return console.log("Canceled")
+      }
+
+      const res = await fetch(`http://localhost:8000/api/users/${id}`, { method: "DELETE" })
+
+      if (res.ok) {
+        fetchData()
+      }
+      alert("Deleted")
+
+    } catch (error) {
+      console.log("Error", error)
+      return alert("Error")
+    }
+  }
+
+  const handleAdd = async () => {
+
+    if (!name || !email) {
+      return alert("Fill all forms")
+    }
+
+    const newUser = { name, email }
+    try {
+      const res = await fetch(`http://localhost:8000/api/users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newUser) })
+      if (res.ok) {
+        fetchData()
+      } else {
+        alert("Error")
+      }
+      // setName("")
+      // setEmail("")
+    } catch (error) {
+      alert("Error")
+    }
+  }
 
   if (loading) {
     return (
       <div className='flex justify-center items-center h-screen text-xl'>
-        <h1>Loading . . .</h1>
+        <div className='grid grid-row-3 mb-3 p-5 gap-4'>
+          <Card className='p-4'>Loading . . .</Card>
+          <div className='grid grid-cols-2 gap-4'>
+            <Button variant='destructive' onClick={handleClear}>
+              Clear User
+            </Button>
+            <Button onClick={handleAdd}>
+              Add User
+            </Button>
+          </div>
+
+          <Card className='grid grid-rows-2 gap-4 p-5'>
+            <Input
+              placeholder='Name'
+              value={name}
+              onChange={(e) => setName(e.target.value)}>
+            </Input>
+            <Input
+              placeholder='Email'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}>
+            </Input>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -71,7 +138,30 @@ export default function Home() {
   if (user.length === 0) {
     return (
       <div className='flex justify-center items-center h-screen text-xl'>
-        <Card className='p-4'>No user or loading . . .</Card>
+        <div className='grid grid-row-3 mb-3 p-5 gap-4'>
+          <Card className='p-4'>No user</Card>
+          <div className='grid grid-cols-2 gap-4'>
+            <Button variant='destructive' onClick={handleClear}>
+              Clear User
+            </Button>
+            <Button onClick={handleAdd}>
+              Add User
+            </Button>
+          </div>
+
+          <Card className='grid grid-rows-2 gap-4 p-5'>
+            <Input
+              placeholder='Name'
+              value={name}
+              onChange={(e) => setName(e.target.value)}>
+            </Input>
+            <Input
+              placeholder='Email'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}>
+            </Input>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -82,7 +172,7 @@ export default function Home() {
         <Card className='grid grid-cols-4 mb-3 p-5'>
           {user.map((usr: any, index: any) => (
             <Card key={usr.id ?? index} className='relative p-8'>
-              <Button variant='destructive' size='sm' className='absolute top-2 right-2 rounded-xl'>
+              <Button variant='destructive' size='sm' className='absolute top-2 right-2 rounded-xl' onClick={() => handleDelete(usr._id)}>
                 <X />
               </Button>
               <div>
@@ -94,13 +184,26 @@ export default function Home() {
         </Card>
 
         <div className='grid grid-cols-2 gap-4'>
-          <Button variant='destructive'>
+          <Button variant='destructive' onClick={handleClear}>
             Clear User
           </Button>
-          <Button>
+          <Button onClick={handleAdd}>
             Add User
           </Button>
         </div>
+
+        <Card className='grid grid-rows-2 gap-4 p-5'>
+          <Input
+            placeholder='Name'
+            value={name}
+            onChange={(e) => setName(e.target.value)}>
+          </Input>
+          <Input
+            placeholder='Email'
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}>
+          </Input>
+        </Card>
       </div >
     </div >
   )
